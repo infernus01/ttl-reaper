@@ -73,7 +73,7 @@ ko-apply: ## Deploy controller using ko.
 
 .PHONY: generate
 generate: ## Generate code (deepcopy, etc.)
-	@echo "Generated code is already present in zz_generated.deepcopy.go"
+	./hack/update-codegen.sh
 
 ##@ Deployment
 
