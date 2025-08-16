@@ -1,0 +1,80 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: ttlreaperconfigs.ttlreaper.io
+spec:
+  group: ttlreaper.io
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - targetKind
+                - targetApiVersion
+              properties:
+                targetNamespace:
+                  type: string
+                  description: "Target namespace where resources to monitor exist. Defaults to the same namespace as the config."
+                targetKind:
+                  type: string
+                  description: "Kind of custom resources to monitor for TTL cleanup"
+                targetApiVersion:
+                  type: string
+                  description: "API version of the target kind"
+                ttlFieldPath:
+                  type: string
+                  description: "Path to the TTL field in the target resource spec. Defaults to 'spec.ttlSecondsAfterFinished'"
+                  default: "spec.ttlSecondsAfterFinished"
+                checkInterval:
+                  type: integer
+                  description: "How often to check for expired resources (in seconds). Defaults to 300 seconds (5 minutes)"
+                  default: 300
+                  minimum: 60
+                enabled:
+                  type: boolean
+                  description: "Controls whether this configuration is active"
+                  default: true
+            status:
+              type: object
+              properties:
+                lastProcessedTime:
+                  type: string
+                  format: date-time
+                  description: "Last time resources were checked for TTL expiration"
+                processedCount:
+                  type: integer
+                  description: "Number of resources processed in the last run"
+                deletedCount:
+                  type: integer
+                  description: "Number of resources deleted in the last run"
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+      subresources:
+        status: {}
+  scope: Namespaced
+  names:
+    plural: ttlreaperconfigs
+    singular: ttlreaperconfig
+    kind: TTLReaperConfig
+    shortNames:
+      - ttlrc

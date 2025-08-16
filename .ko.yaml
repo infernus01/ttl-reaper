@@ -1,0 +1,20 @@
+builds:
+- id: manager
+  main: ./cmd/manager
+  env:
+  - CGO_ENABLED=0
+  goos:
+  - linux
+  goarch:
+  - amd64
+  - arm64
+
+defaultBaseImage: gcr.io/distroless/static:nonroot
+
+# For local development
+local:
+  prefix: ttl-reaper
+  
+# For remote registry
+remote:
+  registry: gcr.io
