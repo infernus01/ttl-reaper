@@ -27,7 +27,7 @@ spec:
         fsGroup: 2000
       containers:
       - name: manager
-        image: ko://github.com/shubbhar/ttl-reaper/cmd/manager
+        image: ko://github.com/infernus01/ttl-reaper/cmd/manager
         imagePullPolicy: IfNotPresent
         command:
         - /manager

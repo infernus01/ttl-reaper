@@ -26,7 +26,6 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// TTLReaperConfig defines a configuration for TTL-based cleanup of custom resources
 type TTLReaperConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -35,55 +34,28 @@ type TTLReaperConfig struct {
 	Status TTLReaperConfigStatus `json:"status,omitempty"`
 }
 
-// TTLReaperConfigSpec defines the desired state of TTLReaperConfig
 type TTLReaperConfigSpec struct {
-	// TargetNamespace is the namespace where the target resources exist
-	// +optional
+	//the namespace where the target resources exist
 	TargetNamespace string `json:"targetNamespace,omitempty"`
 
-	// TargetKind is the kind of custom resources to monitor for TTL cleanup
+	// the kind of custom resources to monitor for TTL cleanup
 	TargetKind string `json:"targetKind"`
 
-	// TargetAPIVersion is the API version of the target kind
-	TargetAPIVersion string `json:"targetApiVersion"`
+	// the API version of the target kind
+	TargetAPIVersion string `json:"targetApiVersion, omitempty"`
 
-	// TTLFieldPath is the path to the TTL field in the target resource spec
-	// Defaults to "spec.ttlSecondsAfterFinished"
-	// +optional
-	TTLFieldPath string `json:"ttlFieldPath,omitempty"`
+	// the path to the TTL field in the target resource spec
+	TTLFieldPath string `json:"ttlFieldPath,omitempty"` 
 
-	// CheckInterval defines how often to check for expired resources (in seconds)
-	// Defaults to 300 seconds (5 minutes)
-	// +optional
+	// how often to check for expired resources (in seconds)
 	CheckInterval *int32 `json:"checkInterval,omitempty"`
-
-	// Enabled controls whether this configuration is active
-	// +optional
-	Enabled *bool `json:"enabled,omitempty"`
 }
 
-// TTLReaperConfigStatus defines the observed state of TTLReaperConfig
 type TTLReaperConfigStatus struct {
-	// LastProcessedTime is the last time resources were checked for TTL expiration
-	// +optional
-	LastProcessedTime *metav1.Time `json:"lastProcessedTime,omitempty"`
-
-	// ProcessedCount is the number of resources processed in the last run
-	// +optional
-	ProcessedCount int32 `json:"processedCount,omitempty"`
-
-	// DeletedCount is the number of resources deleted in the last run
-	// +optional
-	DeletedCount int32 `json:"deletedCount,omitempty"`
-
-	// Conditions represents the latest available observations of the config's current state
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// TTLReaperConfigList contains a list of TTLReaperConfig
 type TTLReaperConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

@@ -21,8 +21,8 @@ package v1alpha1
 import (
 	http "net/http"
 
-	ttlreaperv1alpha1 "github.com/shubbhar/ttl-reaper/pkg/apis/ttlreaper/v1alpha1"
-	scheme "github.com/shubbhar/ttl-reaper/pkg/client/clientset/versioned/scheme"
+	ttlreaperv1alpha1 "github.com/infernus01/ttl-reaper/pkg/apis/ttlreaper/v1alpha1"
+	scheme "github.com/infernus01/ttl-reaper/pkg/client/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 
@@ -31,7 +31,7 @@ type TtlreaperV1alpha1Interface interface {
 	TTLReaperConfigsGetter
 }
 
-// TtlreaperV1alpha1Client is used to interact with features provided by the ttlreaper group.
+// TtlreaperV1alpha1Client is used to interact with features provided by the ttlreaper.io group.
 type TtlreaperV1alpha1Client struct {
 	restClient rest.Interface
 }
@@ -45,7 +45,9 @@ func (c *TtlreaperV1alpha1Client) TTLReaperConfigs(namespace string) TTLReaperCo
 // where httpClient was generated with rest.HTTPClientFor(c).
 func NewForConfig(c *rest.Config) (*TtlreaperV1alpha1Client, error) {
 	config := *c
-	setConfigDefaults(&config)
+	if err := setConfigDefaults(&config); err != nil {
+		return nil, err
+	}
 	httpClient, err := rest.HTTPClientFor(&config)
 	if err != nil {
 		return nil, err
@@ -57,7 +59,9 @@ func NewForConfig(c *rest.Config) (*TtlreaperV1alpha1Client, error) {
 // Note the http client provided takes precedence over the configured transport values.
 func NewForConfigAndClient(c *rest.Config, h *http.Client) (*TtlreaperV1alpha1Client, error) {
 	config := *c
-	setConfigDefaults(&config)
+	if err := setConfigDefaults(&config); err != nil {
+		return nil, err
+	}
 	client, err := rest.RESTClientForConfigAndClient(&config, h)
 	if err != nil {
 		return nil, err
@@ -80,7 +84,7 @@ func New(c rest.Interface) *TtlreaperV1alpha1Client {
 	return &TtlreaperV1alpha1Client{c}
 }
 
-func setConfigDefaults(config *rest.Config) {
+func setConfigDefaults(config *rest.Config) error {
 	gv := ttlreaperv1alpha1.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
@@ -89,6 +93,8 @@ func setConfigDefaults(config *rest.Config) {
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()
 	}
+
+	return nil
 }
 
 // RESTClient returns a RESTClient that is used to communicate

@@ -2,6 +2,9 @@
 IMG ?= ttl-reaper:latest
 KO_DOCKER_REPO ?= ttl-reaper
 
+# Kind cluster name
+KIND_CLUSTER_NAME ?= ttl-reaper-dev
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -74,6 +77,27 @@ ko-apply: ## Deploy controller using ko.
 .PHONY: generate
 generate: ## Generate code (deepcopy, etc.)
 	./hack/update-codegen.sh
+
+##@ Local Development
+
+.PHONY: kind-cluster
+kind-cluster: ## Create a kind cluster if it doesn't exist.
+	@if ! kind get clusters 2>/dev/null | grep -q "^$(KIND_CLUSTER_NAME)$$"; then \
+		echo "Creating kind cluster $(KIND_CLUSTER_NAME)..."; \
+		kind create cluster --name $(KIND_CLUSTER_NAME); \
+	else \
+		echo "Kind cluster $(KIND_CLUSTER_NAME) already exists"; \
+	fi
+	kubectl config use-context kind-$(KIND_CLUSTER_NAME)
+
+.PHONY: kind-deploy
+kind-deploy: kind-cluster ko-build ## Deploy to kind cluster.
+	kind load docker-image $$(ko build --local ./cmd/manager) --name $(KIND_CLUSTER_NAME)
+	ko apply -f config/
+
+.PHONY: kind-delete
+kind-delete: ## Delete the kind cluster.
+	kind delete cluster --name $(KIND_CLUSTER_NAME)
 
 ##@ Deployment
 

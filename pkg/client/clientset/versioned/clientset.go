@@ -22,7 +22,7 @@ import (
 	fmt "fmt"
 	http "net/http"
 
-	ttlreaperv1alpha1 "github.com/shubbhar/ttl-reaper/pkg/client/clientset/versioned/typed/ttlreaper/v1alpha1"
+	ttlreaperv1alpha1 "github.com/infernus01/ttl-reaper/pkg/client/clientset/versioned/typed/ttlreaper/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

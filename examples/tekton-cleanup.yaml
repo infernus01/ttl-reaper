@@ -9,15 +9,12 @@ spec:
   targetNamespace: tekton-pipelines
   targetKind: PipelineRun
   targetApiVersion: tekton.dev/v1beta1
-  
+
   # Use the standard TTL field path
   ttlFieldPath: "spec.ttlSecondsAfterFinished"
-  
+
   # Check every 5 minutes (300 seconds)
   checkInterval: 300
-  
-  # Enable this configuration
-  enabled: true
 
 ---
 # Example TTLReaperConfig for cleaning up TaskRuns
@@ -32,7 +29,6 @@ spec:
   targetApiVersion: tekton.dev/v1beta1
   ttlFieldPath: "spec.ttlSecondsAfterFinished"
   checkInterval: 300
-  enabled: true
 
 ---
 # Example PipelineRun with TTL configured (for testing)
@@ -44,15 +40,15 @@ metadata:
 spec:
   # Set TTL to 1 hour (3600 seconds) after completion
   ttlSecondsAfterFinished: 3600
-  
+
   pipelineSpec:
     tasks:
-    - name: hello-world
-      taskSpec:
-        steps:
-        - name: echo
-          image: alpine:latest
-          command:
-          - echo
-          args:
-          - "Hello World!"
+      - name: hello-world
+        taskSpec:
+          steps:
+            - name: echo
+              image: alpine:latest
+              command:
+                - echo
+              args:
+                - "Hello World!"

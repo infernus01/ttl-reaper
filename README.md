@@ -12,18 +12,30 @@ The TTL Reaper Controller monitors custom resources that have a `spec.ttlSeconds
 - **Configurable Monitoring**: Define what kind of resources to monitor via `TTLReaperConfig` CRD
 - **Flexible TTL Field**: Support for custom TTL field paths (defaults to `spec.ttlSecondsAfterFinished`)
 - **Namespace Scoped**: Can monitor resources in specific namespaces
-- **Status Reporting**: Provides status information about cleanup operations
 - **Built with controller-runtime**: Uses industry-standard Kubernetes controller patterns
 
 ## Quick Start
 
 ### Prerequisites
 
-- Kubernetes cluster (v1.19+)
-- kubectl configured to access your cluster
 - [ko](https://ko.build/) for building and deploying (install with `go install github.com/google/ko@latest`)
+- [kind](https://kind.sigs.k8s.io/) for local testing (install with `go install sigs.k8s.io/kind@latest`)
+- kubectl configured to access your cluster
+- For production: Kubernetes cluster (v1.19+)
 
-### Installation
+### Local Development (Recommended)
+
+1. **Deploy to a local kind cluster:**
+   ```bash
+   make kind-deploy
+   ```
+
+2. **Clean up:**
+   ```bash
+   make kind-delete
+   ```
+
+### Production Installation
 
 1. **Install the CRD:**
    ```bash
@@ -82,27 +94,23 @@ spec:
   
   # Check interval in seconds (optional, defaults to 300)
   checkInterval: 300
-  
-  # Enable/disable this configuration (optional, defaults to true)
-  enabled: true
 ```
 
 ### Configuration Fields
 
 | Field | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `targetNamespace` | Namespace to monitor for target resources | No | Same as config namespace |
-| `targetKind` | Kind of custom resources to monitor | Yes | - |
-| `targetApiVersion` | API version of the target kind | Yes | - |
-| `ttlFieldPath` | Path to the TTL field in resource spec | No | `spec.ttlSecondsAfterFinished` |
-| `checkInterval` | How often to check for expired resources (seconds) | No | 300 |
-| `enabled` | Whether this configuration is active | No | true |
+| `targetNamespace` | the namespace where the target resources exist | No | Same as config namespace |
+| `targetKind` | the kind of custom resources to monitor for TTL cleanup | Yes | - |
+| `targetApiVersion` | the API version of the target kind | Yes | - |
+| `ttlFieldPath` | the path to the TTL field in the target resource spec | No | `spec.ttlSecondsAfterFinished` |
+| `checkInterval` | how often to check for expired resources (in seconds) | No | 300 |
 
 ## How It Works
 
 1. **Resource Monitoring**: The controller watches `TTLReaperConfig` resources for configuration changes.
 
-2. **Target Resource Discovery**: For each enabled configuration, it periodically lists resources of the specified kind in the target namespace.
+2. **Target Resource Discovery**: For each configuration, it periodically lists resources of the specified kind in the target namespace.
 
 3. **TTL Evaluation**: For each resource found:
    - Checks if the resource has the specified TTL field
@@ -110,8 +118,6 @@ spec:
    - Calculates if the TTL has expired since completion
 
 4. **Cleanup**: Deletes resources that have exceeded their TTL after completion.
-
-5. **Status Updates**: Updates the `TTLReaperConfig` status with information about the last cleanup operation.
 
 ## Resource Completion Detection
 
@@ -205,6 +211,11 @@ make ko-build
 
 # Deploy with ko
 make ko-apply
+
+# Local development targets
+make kind-cluster        # Create kind cluster if needed
+make kind-deploy         # Deploy controller to kind
+make kind-delete         # Delete the kind cluster
 ```
 
 ### Contributing
@@ -221,7 +232,6 @@ The controller requires the following permissions:
 
 - **TTLReaperConfig resources**: Full CRUD operations
 - **Target custom resources**: Read and delete permissions
-- **Events**: Create permissions for status updates
 - **ConfigMaps/Leases**: For leader election
 
 ## Monitoring and Observability
@@ -230,7 +240,6 @@ The controller exposes:
 
 - **Health checks**: `/healthz` and `/readyz` endpoints
 - **Metrics**: Prometheus metrics on `:8080/metrics`
-- **Status updates**: TTLReaperConfig status shows last operation results
 
 ## Troubleshooting
 
@@ -246,15 +255,14 @@ The controller exposes:
    - Check that the service account has necessary cluster roles
 
 3. **Configuration not working**:
-   - Ensure `enabled: true` in the TTLReaperConfig
    - Verify the `targetApiVersion` matches exactly
    - Check controller logs for error messages
 
-### Checking Status
+### Debugging
 
 ```bash
-# Check TTLReaperConfig status
-kubectl get ttlreaperconfigs -o yaml
+# Check TTLReaperConfig
+kubectl get ttlreaperconfigs
 
 # Check controller logs
 kubectl logs -n ttl-reaper-system deployment/ttl-reaper-controller

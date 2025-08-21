@@ -1,4 +1,4 @@
-module github.com/shubbhar/ttl-reaper
+module github.com/infernus01/ttl-reaper
 
 go 1.24.0
 

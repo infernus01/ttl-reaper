@@ -33,7 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	ttlreaperv1alpha1 "github.com/shubbhar/ttl-reaper/pkg/apis/ttlreaper/v1alpha1"
+	ttlreaperv1alpha1 "github.com/infernus01/ttl-reaper/pkg/apis/ttlreaper/v1alpha1"
 )
 
 // TTLReaperReconciler reconciles a TTLReaperConfig object
@@ -50,7 +50,6 @@ const (
 )
 
 //+kubebuilder:rbac:groups=ttlreaper.io,resources=ttlreaperconfigs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ttlreaper.io,resources=ttlreaperconfigs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ttlreaper.io,resources=ttlreaperconfigs/finalizers,verbs=update
 //+kubebuilder:rbac:groups=*,resources=*,verbs=get;list;watch;delete
 
@@ -81,17 +80,10 @@ func (r *TTLReaperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, r.Update(ctx, config)
 	}
 
-	// Check if config is enabled
-	if config.Spec.Enabled != nil && !*config.Spec.Enabled {
-		logger.Info("TTLReaperConfig is disabled, skipping processing")
-		return r.scheduleNextReconcile(config), nil
-	}
-
 	// Process TTL cleanup
 	result, err := r.processTTLCleanup(ctx, config)
 	if err != nil {
 		logger.Error(err, "Failed to process TTL cleanup")
-		r.updateStatus(ctx, config, 0, 0, fmt.Sprintf("Error: %v", err))
 		return ctrl.Result{RequeueAfter: time.Minute}, err
 	}
 
@@ -155,13 +147,6 @@ func (r *TTLReaperReconciler) processTTLCleanup(ctx context.Context, config *ttl
 			}
 			deletedCount++
 		}
-	}
-
-	// Update status
-	statusMsg := fmt.Sprintf("Processed %d resources, deleted %d", processedCount, deletedCount)
-	err = r.updateStatus(ctx, config, processedCount, deletedCount, statusMsg)
-	if err != nil {
-		logger.Error(err, "Failed to update status")
 	}
 
 	logger.Info("TTL cleanup completed", "processed", processedCount, "deleted", deletedCount)
@@ -257,49 +242,19 @@ func (r *TTLReaperReconciler) scheduleNextReconcile(config *ttlreaperv1alpha1.TT
 	return ctrl.Result{RequeueAfter: time.Duration(interval) * time.Second}
 }
 
-// updateStatus updates the status of TTLReaperConfig
-func (r *TTLReaperReconciler) updateStatus(ctx context.Context, config *ttlreaperv1alpha1.TTLReaperConfig, processed, deleted int32, message string) error {
-	now := metav1.Now()
-	config.Status.LastProcessedTime = &now
-	config.Status.ProcessedCount = processed
-	config.Status.DeletedCount = deleted
-
-	// Update conditions
-	condition := metav1.Condition{
-		Type:    "Ready",
-		Status:  metav1.ConditionTrue,
-		Reason:  "ProcessingComplete",
-		Message: message,
-	}
-
-	// Update or add condition
-	found := false
-	for i, cond := range config.Status.Conditions {
-		if cond.Type == "Ready" {
-			config.Status.Conditions[i] = condition
-			found = true
-			break
-		}
-	}
-	if !found {
-		config.Status.Conditions = append(config.Status.Conditions, condition)
-	}
-
-	return r.Status().Update(ctx, config)
-}
-
 // Helper functions
 func getNestedField(obj *unstructured.Unstructured, fieldPath string) (interface{}, bool) {
-	// Simple implementation for "spec.ttlSecondsAfterFinished"
-	if fieldPath == "spec.ttlSecondsAfterFinished" {
-		value, found, err := unstructured.NestedFieldNoCopy(obj.Object, "spec", "ttlSecondsAfterFinished")
-		if err != nil {
-			return nil, false
-		}
-		return value, found
+	// Parse the field path (e.g., "spec.ttlSecondsAfterFinished" or "metadata.annotations.ttl-seconds")
+	parts := split(fieldPath, ".")
+	if len(parts) == 0 {
+		return nil, false
 	}
-	// Add more complex path parsing if needed
-	return nil, false
+
+	value, found, err := unstructured.NestedFieldNoCopy(obj.Object, parts...)
+	if err != nil {
+		return nil, false
+	}
+	return value, found
 }
 
 func convertToInt64(value interface{}) (int64, error) {

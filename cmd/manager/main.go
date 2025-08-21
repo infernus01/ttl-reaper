@@ -30,8 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	ttlreaperv1alpha1 "github.com/shubbhar/ttl-reaper/pkg/apis/ttlreaper/v1alpha1"
-	"github.com/shubbhar/ttl-reaper/pkg/controller"
+	ttlreaperv1alpha1 "github.com/infernus01/ttl-reaper/pkg/apis/ttlreaper/v1alpha1"
+	"github.com/infernus01/ttl-reaper/pkg/controller"
 )
 
 var (
