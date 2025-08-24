@@ -94,10 +94,10 @@ func (r *TTLReaperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 func (r *TTLReaperReconciler) processTTLCleanup(ctx context.Context, config *ttlreaperv1alpha1.TTLReaperConfig) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	// Determine target namespace
+	// Get target namespace (required for cluster-scoped configs)
 	targetNamespace := config.Spec.TargetNamespace
 	if targetNamespace == "" {
-		targetNamespace = config.Namespace
+		return ctrl.Result{}, fmt.Errorf("targetNamespace is required for cluster-scoped TTLReaperConfig")
 	}
 
 	// Create GroupVersionResource for the target kind

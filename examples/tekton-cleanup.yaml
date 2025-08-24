@@ -3,7 +3,6 @@ apiVersion: ttlreaper.io/v1alpha1
 kind: TTLReaperConfig
 metadata:
   name: tekton-pipelinerun-cleanup
-  namespace: tekton-pipelines
 spec:
   # Target Tekton PipelineRuns in the tekton-pipelines namespace
   targetNamespace: tekton-pipelines
@@ -22,7 +21,6 @@ apiVersion: ttlreaper.io/v1alpha1
 kind: TTLReaperConfig
 metadata:
   name: tekton-taskrun-cleanup
-  namespace: tekton-pipelines
 spec:
   targetNamespace: tekton-pipelines
   targetKind: TaskRun

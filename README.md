@@ -1,18 +1,29 @@
 # TTL Reaper Controller
 
-A Kubernetes controller that automatically cleans up custom resources based on TTL (Time To Live) configuration. This controller provides an abstracted solution that can work with any custom resource in the Kubernetes ecosystem.
+A universal Kubernetes controller that automates the cleanup of custom resources based on TTL (Time To Live) policies. Unlike resource-specific solutions, TTL Reaper provides a generic, declarative approach to resource lifecycle management that works with any Kubernetes custom resource.
+
+## 📚 Documentation
+
+- **[📋 Project Overview](PROJECT_OVERVIEW.md)** - Executive summary and comprehensive project documentation
+- **[🎯 Problem Statement](PROBLEM_STATEMENT.md)** - Detailed analysis of the problem we're solving and our solution approach  
+- **[⚖️ Comparison with Tektoncd-Pruner](COMPARISON_WITH_TEKTONCD_PRUNER.md)** - How TTL Reaper differs from and improves upon existing solutions
+- **[🔧 Technical Deep Dive: main.go](main_go_explained.txt)** - Line-by-line explanation of the controller manager
+- **[🧹 Technical Deep Dive: controller](ttlreaper_controller_explained.txt)** - Detailed explanation of the reconciliation logic
 
 ## Overview
 
 The TTL Reaper Controller monitors custom resources that have a `spec.ttlSecondsAfterFinished` field and automatically deletes them after the specified time has elapsed since completion. This is particularly useful for cleaning up resources like Tekton PipelineRuns, TaskRuns, or any other custom resources that accumulate over time.
 
-## Features
+**Architecture:** TTLReaperConfig is cluster-scoped, allowing platform administrators to define cleanup policies that can target any namespace in the cluster. The controller runs in the `ttl-reaper-system` namespace but operates cluster-wide.
 
-- **Generic Solution**: Works with any custom resource that implements TTL semantics
-- **Configurable Monitoring**: Define what kind of resources to monitor via `TTLReaperConfig` CRD
-- **Flexible TTL Field**: Support for custom TTL field paths (defaults to `spec.ttlSecondsAfterFinished`)
-- **Namespace Scoped**: Can monitor resources in specific namespaces
-- **Built with controller-runtime**: Uses industry-standard Kubernetes controller patterns
+## ✨ Key Features
+
+- **🌍 Universal**: Works with any custom resource (PipelineRuns, Jobs, CRDs, etc.)
+- **⚡ Real-time**: Continuous reconciliation, not batch processing
+- **📋 Declarative**: Simple CRD-based configuration
+- **🔧 Extensible**: Add new resource types without code changes
+- **🛡️ Production-ready**: Built with controller-runtime best practices
+- **🎯 Cluster-scoped**: Centralized policy management
 
 ## Quick Start
 
@@ -78,9 +89,9 @@ apiVersion: ttlreaper.io/v1alpha1
 kind: TTLReaperConfig
 metadata:
   name: tekton-pipelinerun-cleanup
-  namespace: tekton-pipelines
+
 spec:
-  # Target namespace (defaults to the config's namespace)
+  # Target namespace (required for cluster-scoped configs)
   targetNamespace: tekton-pipelines
   
   # Kind of resources to monitor
@@ -100,7 +111,7 @@ spec:
 
 | Field | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `targetNamespace` | the namespace where the target resources exist | No | Same as config namespace |
+| `targetNamespace` | the namespace where the target resources exist | Yes | - |
 | `targetKind` | the kind of custom resources to monitor for TTL cleanup | Yes | - |
 | `targetApiVersion` | the API version of the target kind | Yes | - |
 | `ttlFieldPath` | the path to the TTL field in the target resource spec | No | `spec.ttlSecondsAfterFinished` |
@@ -137,7 +148,7 @@ apiVersion: ttlreaper.io/v1alpha1
 kind: TTLReaperConfig
 metadata:
   name: tekton-pipelinerun-cleanup
-  namespace: tekton-pipelines
+
 spec:
   targetKind: PipelineRun
   targetApiVersion: tekton.dev/v1beta1
@@ -149,7 +160,7 @@ apiVersion: tekton.dev/v1beta1
 kind: PipelineRun
 metadata:
   name: example-pipeline
-  namespace: tekton-pipelines
+
 spec:
   ttlSecondsAfterFinished: 3600  # Delete 1 hour after completion
   pipelineSpec:
@@ -163,7 +174,6 @@ apiVersion: ttlreaper.io/v1alpha1
 kind: TTLReaperConfig
 metadata:
   name: custom-job-cleanup
-  namespace: default
 spec:
   targetKind: CustomJob
   targetApiVersion: example.com/v1

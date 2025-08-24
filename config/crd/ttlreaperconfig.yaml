@@ -15,6 +15,7 @@ spec:
             spec:
               type: object
               required:
+                - targetNamespace
                 - targetKind
                 - targetApiVersion
               properties:
@@ -35,7 +36,7 @@ spec:
                   description: "how often to check for expired resources (in seconds)"
             status:
               type: object
-  scope: Namespaced
+  scope: Cluster
   names:
     plural: ttlreaperconfigs
     singular: ttlreaperconfig
