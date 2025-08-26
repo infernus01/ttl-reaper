@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ttlreaper-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-logging
+  namespace: ttlreaper-system
+data:
+  loglevel.controller: "info"
+  loglevel.webhook: "info"
+  zap-logger-config: |
+    {
+      "level": "info",
+      "development": false,
+      "outputPaths": ["stdout"],
+      "errorOutputPaths": ["stderr"],
+      "encoding": "json",
+      "encoderConfig": {
+        "timeKey": "ts",
+        "levelKey": "level",
+        "nameKey": "logger",
+        "callerKey": "caller",
+        "messageKey": "msg",
+        "stacktraceKey": "stacktrace",
+        "lineEnding": "",
+        "levelEncoder": "",
+        "timeEncoder": "iso8601",
+        "durationEncoder": "",
+        "callerEncoder": ""
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-observability
+  namespace: ttlreaper-system
+data:
+  _example: |
+    ################################
+    #                              #
+    #    EXAMPLE CONFIGURATION     #
+    #                              #
+    ################################
+    # This is an example of metrics configuration
+  metrics.backend-destination: prometheus
+  metrics.request-metrics-backend-destination: prometheus
+  metrics.stackdriver-project-id: ""
+  profiling.enable: "false"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ttlreaper-controller
+  namespace: ttlreaper-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ttlreaper-controller
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces", "configmaps", "events"]
+    verbs: ["get", "list", "create", "update", "patch", "watch"]
+  - apiGroups: ["clusterops.io"]
+    resources: ["ttlreapers"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["clusterops.io"]
+    resources: ["ttlreapers/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Broad permissions to work with any custom resource dynamically
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "delete", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ttlreaper-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ttlreaper-controller
+subjects:
+  - kind: ServiceAccount
+    name: ttlreaper-controller
+    namespace: ttlreaper-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ttlreaper-controller
+  namespace: ttlreaper-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ttlreaper-controller
+  template:
+    metadata:
+      labels:
+        app: ttlreaper-controller
+    spec:
+      serviceAccountName: ttlreaper-controller
+      containers:
+        - name: controller
+          image: ko://github.com/infernus01/knative-demo/cmd/controller
+          env:
+            - name: SYSTEM_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: CONFIG_LOGGING_NAME
+              value: config-logging
+            - name: CONFIG_OBSERVABILITY_NAME
+              value: config-observability
+            - name: METRICS_DOMAIN
+              value: clusterops.io/ttlreaper

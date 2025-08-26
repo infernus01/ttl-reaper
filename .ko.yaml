@@ -1,0 +1,9 @@
+baseImageOverrides:
+  github.com/infernus01/knative-demo/cmd/controller: cgr.dev/chainguard/static:latest
+
+builds:
+  github.com/infernus01/knative-demo/cmd/controller:
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
