@@ -11,10 +11,9 @@ install-kind:
 apply-crds:
 	@echo "Applying all CRDs..."
 	@if [ -d "config/crd" ]; then \
-		kubectl apply -f config/crd/; \
-		echo "Applied all CRDs from config/crd/"; \
+		kubectl apply -f config/; \
 	else \
-		echo "config/crd/ directory not found"; \
+		echo "config/ directory not found"; \
 	fi
 
 # Apply ALL Custom Resources (any YAML file in examples/)
