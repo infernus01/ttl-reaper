@@ -126,8 +126,12 @@ func (r *Reconciler) reconcileTTLReaper(ctx context.Context, reaper *v1alpha1.TT
 		totalReaped += reaped
 	}
 
-	logger.Infow("TTL reaping completed",
+	logger.Infow("🎯 TTL reaping cycle completed",
 		zap.String("ttlreaper", reaper.Name),
+		zap.String("targetKind", reaper.Spec.TargetKind),
+		zap.String("targetAPIVersion", reaper.Spec.TargetAPIVersion),
+		zap.String("targetNamespace", reaper.Spec.TargetNamespace),
+		zap.Int("namespacesProcessed", len(namespaces)),
 		zap.Int("totalReaped", totalReaped))
 
 	return nil
@@ -159,20 +163,58 @@ func (r *Reconciler) processNamespace(ctx context.Context, namespace string, gvr
 
 	reaped := 0
 	for _, item := range resourceList.Items {
+		// Enhanced logging for each resource evaluation
+		resourceName := item.GetName()
+		logger.Debugw("Evaluating resource for TTL cleanup",
+			zap.String("resource", resourceName),
+			zap.String("kind", item.GetKind()),
+			zap.String("namespace", item.GetNamespace()))
+
 		if r.shouldReapResource(ctx, &item) {
-			logger.Infow("Reaping expired resource",
-				zap.String("resource", item.GetName()),
+			// Get TTL info for detailed logging
+			ttlSeconds, _, _ := unstructured.NestedInt64(item.Object, "spec", "ttlSecondsAfterFinished")
+
+			logger.Infow("🗑️  REAPING EXPIRED RESOURCE",
+				zap.String("resource", resourceName),
 				zap.String("kind", item.GetKind()),
-				zap.String("namespace", item.GetNamespace()))
+				zap.String("namespace", item.GetNamespace()),
+				zap.Int64("ttlSeconds", ttlSeconds),
+				zap.String("reason", "TTL expired"))
 
 			err := r.dynamicClient.Resource(gvr).Namespace(namespace).Delete(ctx, item.GetName(), metav1.DeleteOptions{})
 			if err != nil {
-				logger.Errorw("Failed to delete resource",
-					zap.String("resource", item.GetName()),
+				logger.Errorw("❌ Failed to delete expired resource",
+					zap.String("resource", resourceName),
+					zap.String("kind", item.GetKind()),
+					zap.String("namespace", item.GetNamespace()),
 					zap.Error(err))
 				continue
 			}
+
+			logger.Infow("✅ Successfully deleted expired resource",
+				zap.String("resource", resourceName),
+				zap.String("kind", item.GetKind()),
+				zap.String("namespace", item.GetNamespace()),
+				zap.Int64("ttlSeconds", ttlSeconds))
 			reaped++
+		} else {
+			// Log why resource was not reaped
+			ttlSeconds, hasTTL, _ := unstructured.NestedInt64(item.Object, "spec", "ttlSecondsAfterFinished")
+			if !hasTTL {
+				logger.Debugw("⏭️  Skipping resource (no TTL field)",
+					zap.String("resource", resourceName),
+					zap.String("kind", item.GetKind()))
+			} else if !r.isResourceFinished(&item) {
+				logger.Debugw("⏭️  Skipping resource (not finished)",
+					zap.String("resource", resourceName),
+					zap.String("kind", item.GetKind()),
+					zap.Int64("ttlSeconds", ttlSeconds))
+			} else {
+				logger.Debugw("⏭️  Skipping resource (TTL not expired)",
+					zap.String("resource", resourceName),
+					zap.String("kind", item.GetKind()),
+					zap.Int64("ttlSeconds", ttlSeconds))
+			}
 		}
 	}
 

@@ -1,0 +1,73 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workflowruns.workflows.example.com
+spec:
+  group: workflows.example.com
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                # This is the key field our TTL Reaper looks for
+                ttlSecondsAfterFinished:
+                  type: integer
+                  description: "TTL in seconds after the workflow finishes"
+                # Workflow definition
+                steps:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      image:
+                        type: string
+                      command:
+                        type: array
+                        items:
+                          type: string
+                parameters:
+                  type: object
+                  additionalProperties:
+                    type: string
+            status:
+              type: object
+              properties:
+                # Completion patterns our TTL Reaper looks for
+                phase:
+                  type: string
+                  enum: ["Pending", "Running", "Succeeded", "Failed"]
+                completionTime:
+                  type: string
+                  format: date-time
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      message:
+                        type: string
+                startTime:
+                  type: string
+                  format: date-time
+  scope: Namespaced
+  names:
+    plural: workflowruns
+    singular: workflowrun
+    kind: WorkflowRun
+    shortNames:
+      - wfr

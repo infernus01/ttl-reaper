@@ -48,4 +48,4 @@ spec:
     singular: ttlreaper
     kind: TTLReaper
     shortNames:
-      - tr
+      - ttlr
