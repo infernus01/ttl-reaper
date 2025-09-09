@@ -1,6 +1,6 @@
 # Basic Makefile for TTLReaper CRD
 
-.PHONY: install-kind apply-crd apply-cr setup clean deploy-ttlreaper build-image deploy-ko
+.PHONY: install-kind setup clean deploy-ttlreaper
 
 # Install kind cluster
 install-kind:
@@ -12,7 +12,7 @@ deploy-ttlreaper:
 	@echo "Deploying ttlreaper controller using ko..."
 	@KIND_CLUSTER_NAME=ttlreaper-demo KO_DOCKER_REPO=kind.local ko apply -Rf config/
 
-# Full setup: install kind + apply ALL CRDs + apply ALL CRs
+# Full setup: install kind + apply ALL CRDs
 setup: install-kind deploy-ttlreaper
 	@echo "Setup complete!"
 	
