@@ -7,32 +7,15 @@ install-kind:
 	@echo "Creating kind cluster..."
 	@kind create cluster --name ttlreaper-demo
 
-# Apply ALL CRDs (any YAML file in config/crd/)
-apply-crds:
-	@echo "Applying all CRDs..."
-	@if [ -d "config/crd" ]; then \
-		kubectl apply -f config/; \
-	else \
-		echo "config/ directory not found"; \
-	fi
-
-# Apply ALL Custom Resources (any YAML file in examples/)
-apply-crs:
-	@echo "Applying all Custom Resources..."
-	@if [ -d "examples" ]; then \
-		kubectl apply -f examples/; \
-		echo "Applied all CRs from examples/"; \
-	fi
-
-# Full setup: install kind + apply ALL CRDs + apply ALL CRs
-setup: install-kind apply-crds apply-crs
-	@echo "Setup complete!"
-
 # Deploy using ko (alternative)
 deploy-ttlreaper:
 	@echo "Deploying ttlreaper controller using ko..."
-	@KIND_CLUSTER_NAME=ttlreaper-demo KO_DOCKER_REPO=kind.local ko apply -f config/deploy/
+	@KIND_CLUSTER_NAME=ttlreaper-demo KO_DOCKER_REPO=kind.local ko apply -Rf config/
 
+# Full setup: install kind + apply ALL CRDs + apply ALL CRs
+setup: install-kind deploy-ttlreaper
+	@echo "Setup complete!"
+	
 # Clean up everything (cluster)
 clean:
 	@echo "Cleaning up..."

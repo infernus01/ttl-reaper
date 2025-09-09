@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -43,6 +44,10 @@ type Reconciler struct {
 	kubeclientset   kubernetes.Interface
 	dynamicClient   dynamic.Interface
 	ttlreaperLister ttlreaperlister.TTLReaperLister
+
+	// Timer management for immediate TTL deletion (like Jobs)
+	timers      map[string]*time.Timer
+	timersMutex sync.RWMutex
 }
 
 // Check that our Reconciler implements Interface
@@ -115,7 +120,7 @@ func (r *Reconciler) reconcileTTLReaper(ctx context.Context, reaper *v1alpha1.TT
 
 	// Process each namespace
 	for _, namespace := range namespaces {
-		reaped, err := r.processNamespace(ctx, namespace, gvr, reaper.Spec.LabelSelector)
+		scheduled, err := r.processNamespace(ctx, namespace, gvr, reaper.Spec.LabelSelector)
 		if err != nil {
 			logger.Errorw("Error processing namespace",
 				zap.String("namespace", namespace),
@@ -123,12 +128,16 @@ func (r *Reconciler) reconcileTTLReaper(ctx context.Context, reaper *v1alpha1.TT
 			// Continue with other namespaces even if one fails
 			continue
 		}
-		totalReaped += reaped
+		totalReaped += scheduled
 	}
 
-	logger.Infow("TTL reaping completed",
+	logger.Infow("🎯 TTL scheduling cycle completed",
 		zap.String("ttlreaper", reaper.Name),
-		zap.Int("totalReaped", totalReaped))
+		zap.String("targetKind", reaper.Spec.TargetKind),
+		zap.String("targetAPIVersion", reaper.Spec.TargetAPIVersion),
+		zap.String("targetNamespace", reaper.Spec.TargetNamespace),
+		zap.Int("namespacesProcessed", len(namespaces)),
+		zap.Int("totalScheduled", totalReaped))
 
 	return nil
 }
@@ -157,52 +166,35 @@ func (r *Reconciler) processNamespace(ctx context.Context, namespace string, gvr
 		return 0, fmt.Errorf("failed to list resources %s in namespace %s: %w", gvr.String(), namespace, err)
 	}
 
-	reaped := 0
+	scheduled := 0
 	for _, item := range resourceList.Items {
-		if r.shouldReapResource(ctx, &item) {
-			logger.Infow("Reaping expired resource",
-				zap.String("resource", item.GetName()),
-				zap.String("kind", item.GetKind()),
-				zap.String("namespace", item.GetNamespace()))
+		resourceName := item.GetName()
+		resourceKey := fmt.Sprintf("%s/%s/%s", namespace, item.GetKind(), resourceName)
 
-			err := r.dynamicClient.Resource(gvr).Namespace(namespace).Delete(ctx, item.GetName(), metav1.DeleteOptions{})
-			if err != nil {
-				logger.Errorw("Failed to delete resource",
-					zap.String("resource", item.GetName()),
-					zap.Error(err))
-				continue
-			}
-			reaped++
+		// Check if resource has TTL field
+		ttlSeconds, hasTTL, err := unstructured.NestedInt64(item.Object, "spec", "ttlSecondsAfterFinished")
+		if err != nil || !hasTTL {
+			continue
 		}
+
+		// Check if resource is finished
+		if !r.isResourceFinished(&item) {
+			continue
+		}
+
+		// Schedule deletion at exact TTL expiration time (like Jobs)
+		r.scheduleResourceDeletion(ctx, resourceKey, &item, gvr, ttlSeconds)
+		scheduled++
 	}
 
-	return reaped, nil
+	return scheduled, nil
 }
 
-func (r *Reconciler) shouldReapResource(ctx context.Context, resource *unstructured.Unstructured) bool {
+func (r *Reconciler) scheduleResourceDeletion(ctx context.Context, resourceKey string, resource *unstructured.Unstructured, gvr schema.GroupVersionResource, ttlSeconds int64) {
 	logger := logging.FromContext(ctx)
 
-	// Check if the resource has ttlSecondsAfterFinished in spec
-	ttlSeconds, found, err := unstructured.NestedInt64(resource.Object, "spec", "ttlSecondsAfterFinished")
-	if err != nil {
-		logger.Debugw("Error reading ttlSecondsAfterFinished", zap.Error(err))
-		return false
-	}
-	if !found {
-		// No TTL field, don't reap
-		return false
-	}
-
-	// Check if the resource is completed/finished
-	// This checks for common completion indicators
-	if !r.isResourceFinished(resource) {
-		return false
-	}
-
-	// Calculate if TTL has expired
+	// Get completion time
 	var finishTime time.Time
-
-	// Try to get completion time from status.completionTime (common in many CRs)
 	completionTimeStr, found, err := unstructured.NestedString(resource.Object, "status", "completionTime")
 	if found && err == nil {
 		if parsedTime, parseErr := time.Parse(time.RFC3339, completionTimeStr); parseErr == nil {
@@ -210,16 +202,73 @@ func (r *Reconciler) shouldReapResource(ctx context.Context, resource *unstructu
 		}
 	}
 
-	// Fallback to creation time if no completion time found
+	// Fallback to creation time if no completion time
 	if finishTime.IsZero() {
 		finishTime = resource.GetCreationTimestamp().Time
 	}
 
-	// Check if TTL has expired
+	// Calculate exact expiration time
 	ttlDuration := time.Duration(ttlSeconds) * time.Second
 	expirationTime := finishTime.Add(ttlDuration)
 
-	return time.Now().After(expirationTime)
+	// Calculate delay until expiration
+	delay := time.Until(expirationTime)
+
+	// Cancel existing timer if any
+	r.timersMutex.Lock()
+	if existingTimer, exists := r.timers[resourceKey]; exists {
+		existingTimer.Stop()
+		delete(r.timers, resourceKey)
+	}
+
+	// If already expired, delete immediately
+	if delay <= 0 {
+		r.timersMutex.Unlock()
+		logger.Infow("🗑️  REAPING EXPIRED RESOURCE",
+			zap.String("resource", resource.GetName()),
+			zap.String("kind", resource.GetKind()),
+			zap.String("namespace", resource.GetNamespace()),
+			zap.Int64("ttlSeconds", ttlSeconds))
+
+		err := r.dynamicClient.Resource(gvr).Namespace(resource.GetNamespace()).Delete(ctx, resource.GetName(), metav1.DeleteOptions{})
+		if err != nil {
+			logger.Errorw("❌ Failed to delete expired resource", zap.Error(err))
+		} else {
+			logger.Infow("✅ Successfully deleted expired resource",
+				zap.String("resource", resource.GetName()))
+		}
+		return
+	}
+
+	// Schedule timer for exact expiration time
+	timer := time.AfterFunc(delay, func() {
+		logger.Infow("🗑️  REAPING EXPIRED RESOURCE (Timer)",
+			zap.String("resource", resource.GetName()),
+			zap.String("kind", resource.GetKind()),
+			zap.String("namespace", resource.GetNamespace()),
+			zap.Int64("ttlSeconds", ttlSeconds))
+
+		err := r.dynamicClient.Resource(gvr).Namespace(resource.GetNamespace()).Delete(context.Background(), resource.GetName(), metav1.DeleteOptions{})
+		if err != nil {
+			logger.Errorw("❌ Failed to delete expired resource", zap.Error(err))
+		} else {
+			logger.Infow("✅ Successfully deleted expired resource",
+				zap.String("resource", resource.GetName()))
+		}
+
+		// Clean up timer
+		r.timersMutex.Lock()
+		delete(r.timers, resourceKey)
+		r.timersMutex.Unlock()
+	})
+
+	r.timers[resourceKey] = timer
+	r.timersMutex.Unlock()
+
+	logger.Infow("⏰ Scheduled TTL deletion",
+		zap.String("resource", resource.GetName()),
+		zap.Duration("delay", delay),
+		zap.Time("expirationTime", expirationTime))
 }
 
 func (r *Reconciler) isResourceFinished(resource *unstructured.Unstructured) bool {
