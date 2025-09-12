@@ -1,0 +1,105 @@
+# export CURRENT_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: workflow-demo
+---
+apiVersion: clusterops.io/v1alpha1
+kind: TTLReaper
+metadata:
+  name: workflow-cleanup
+  namespace: workflow-demo
+spec:
+  targetKind: WorkflowRun
+  targetAPIVersion: workflows.example.com/v1
+  targetNamespace: workflow-demo
+  labelSelector:
+    matchLabels:
+      demo: "live-ttl-test"
+---
+apiVersion: workflows.example.com/v1
+kind: WorkflowRun
+metadata:
+  name: quick-workflow
+  namespace: workflow-demo
+  labels:
+    demo: "live-ttl-test"
+spec:
+  ttlSecondsAfterFinished: 15
+  steps:
+    - name: hello
+      image: busybox
+      command: ["echo", "Hello from quick workflow!"]
+status:
+  phase: "Succeeded"
+  startTime: "$CURRENT_TIME"
+  completionTime: "$CURRENT_TIME"
+  conditions:
+    - type: "Succeeded"
+      status: "True"
+      lastTransitionTime: "$CURRENT_TIME"
+      message: "Workflow completed successfully"
+---
+apiVersion: workflows.example.com/v1
+kind: WorkflowRun
+metadata:
+  name: medium-workflow
+  namespace: workflow-demo
+  labels:
+    demo: "live-ttl-test"
+spec:
+  ttlSecondsAfterFinished: 45
+  steps:
+    - name: process
+      image: busybox
+      command: ["echo", "Processing data..."]
+status:
+  phase: "Succeeded"
+  startTime: "$CURRENT_TIME"
+  completionTime: "$CURRENT_TIME"
+  conditions:
+    - type: "Succeeded"
+      status: "True"
+      lastTransitionTime: "$CURRENT_TIME"
+      message: "Workflow completed successfully"
+---
+apiVersion: workflows.example.com/v1
+kind: WorkflowRun
+metadata:
+  name: permanent-workflow
+  namespace: workflow-demo
+  labels:
+    demo: "live-ttl-test"
+spec:
+  steps:
+    - name: archive
+      image: busybox
+      command: ["echo", "Archiving important data..."]
+status:
+  phase: "Succeeded"
+  startTime: "$CURRENT_TIME"
+  completionTime: "$CURRENT_TIME"
+  conditions:
+    - type: "Succeeded"
+      status: "True"
+      lastTransitionTime: "$CURRENT_TIME"
+      message: "Workflow completed successfully"
+---
+apiVersion: workflows.example.com/v1
+kind: WorkflowRun
+metadata:
+  name: running-workflow
+  namespace: workflow-demo
+  labels:
+    demo: "live-ttl-test"
+spec:
+  ttlSecondsAfterFinished: 30
+  steps:
+    - name: long-task
+      image: busybox
+      command: ["sleep", "300"]
+status:
+  phase: "Running"
+  startTime: "$CURRENT_TIME"
+  # No completionTime = still running
